@@ -1,1 +1,675 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traffic Racer</title>
+
+<style>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background: #101827;
+  color: white;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 15px;
+}
+
+.game {
+  width: 100%;
+  max-width: 430px;
+  text-align: center;
+}
+
+h1 {
+  font-size: 32px;
+  margin-bottom: 5px;
+  letter-spacing: 2px;
+}
+
+h1 span { color: #facc15; }
+
+.subtitle {
+  color: #a8b4c8;
+  font-size: 13px;
+  margin-bottom: 15px;
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.stat {
+  padding: 10px 5px;
+  border-radius: 10px;
+  background: #202c40;
+  border: 1px solid #354258;
+}
+
+.stat small {
+  display: block;
+  color: #a8b4c8;
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.stat strong {
+  font-size: 20px;
+  color: #facc15;
+}
+
+.game-area {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 3px solid #64748b;
+  border-radius: 12px;
+  background: #3f4853;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 12, 25, .82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+}
+
+.overlay.hidden { display: none; }
+
+.dialog {
+  width: 100%;
+  padding: 20px 14px;
+  border-radius: 15px;
+  background: #172338;
+  border: 1px solid #43536b;
+}
+
+.dialog h2 {
+  font-size: 27px;
+  margin-bottom: 10px;
+}
+
+.dialog p {
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+button {
+  border: none;
+  border-radius: 9px;
+  font-size: 15px;
+  font-weight: bold;
+  padding: 12px 16px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.primary {
+  color: #111827;
+  background: #facc15;
+  width: 100%;
+}
+
+.primary:hover { background: #fde047; }
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.control-btn {
+  background: #26364d;
+  color: white;
+  border: 1px solid #43536b;
+  font-size: 24px;
+  padding: 13px;
+  user-select: none;
+}
+
+.control-btn:active { background: #475569; }
+
+.utility {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.utility button {
+  flex: 1;
+  color: white;
+  background: #26364d;
+  font-size: 13px;
+  padding: 11px 6px;
+}
+
+.help {
+  color: #a8b4c8;
+  font-size: 12px;
+  margin-top: 12px;
+  line-height: 1.7;
+}
+
+@media (min-width: 600px) {
+  .game { max-width: 390px; }
+}
+</style>
+</head>
+
+<body>
+<div class="game">
+
+  <h1>TRAFFIC <span>RACER</span></h1>
+  <p class="subtitle">DODGE TRAFFIC • COLLECT COINS • BEAT YOUR RECORD</p>
+
+  <div class="hud">
+    <div class="stat">
+      <small>SCORE</small>
+      <strong id="score">0</strong>
+    </div>
+    <div class="stat">
+      <small>COINS</small>
+      <strong id="coins">0</strong>
+    </div>
+    <div class="stat">
+      <small>BEST</small>
+      <strong id="best">0</strong>
+    </div>
+  </div>
+
+  <div class="game-area">
+    <canvas id="canvas" width="360" height="600"
+            aria-label="Traffic Racer game"></canvas>
+
+    <div class="overlay" id="overlay">
+      <div class="dialog">
+        <h2 id="overlay-title">🏎️ Traffic Racer</h2>
+        <p id="overlay-message">
+          Drive through traffic, collect coins, and avoid crashing.
+          How far can you go?
+        </p>
+        <button class="primary" id="start-btn">START RACE</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="control-btn" id="left-btn" aria-label="Move left">⬅️ LEFT</button>
+    <button class="control-btn" id="right-btn" aria-label="Move right">RIGHT ➡️</button>
+  </div>
+
+  <div class="utility">
+    <button id="pause-btn">⏸ PAUSE</button>
+    <button id="restart-btn">🔄 RESTART</button>
+  </div>
+
+  <p class="help">
+    PC: Use ← → arrow keys or A / D<br>
+    Mobile: Tap the left and right buttons<br>
+    Collect coins and avoid other vehicles!
+  </p>
+</div>
+
+<script>
+"use strict";
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const W = canvas.width;
+const H = canvas.height;
+
+const scoreEl = document.getElementById("score");
+const coinsEl = document.getElementById("coins");
+const bestEl = document.getElementById("best");
+const overlay = document.getElementById("overlay");
+const overlayTitle = document.getElementById("overlay-title");
+const overlayMessage = document.getElementById("overlay-message");
+const startBtn = document.getElementById("start-btn");
+const pauseBtn = document.getElementById("pause-btn");
+
+const ROAD_X = 35;
+const ROAD_W = 290;
+const LANE_W = ROAD_W / 3;
+
+let state = "menu";
+let score = 0;
+let coins = 0;
+let best = 0;
+let roadOffset = 0;
+let lastTime = 0;
+let spawnTimer = 0;
+let coinTimer = 0;
+let traffic = [];
+let pickups = [];
+let particles = [];
+let invincible = 0;
+
+try {
+  best = Number(localStorage.getItem("trafficRacerBest")) || 0;
+} catch (_) {
+  best = 0;
+}
+bestEl.textContent = best;
+
+const player = {
+  lane: 1,
+  x: ROAD_X + LANE_W * 1.5,
+  y: H - 105,
+  width: 40,
+  height: 70,
+  color: "#ef4444"
+};
+
+const enemyColors = [
+  "#38bdf8", "#a78bfa", "#f97316",
+  "#22c55e", "#f472b6", "#e2e8f0"
+];
+
+function roundedRect(x, y, w, h, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.fill();
+}
+
+function drawCar(x, y, color, isPlayer = false) {
+  const w = 40;
+  const h = 70;
+
+  // Wheels
+  roundedRect(x - w/2 - 3, y + 12, 7, 17, 2, "#111827");
+  roundedRect(x + w/2 - 4, y + 12, 7, 17, 2, "#111827");
+  roundedRect(x - w/2 - 3, y + 43, 7, 17, 2, "#111827");
+  roundedRect(x + w/2 - 4, y + 43, 7, 17, 2, "#111827");
+
+  // Body
+  roundedRect(x - w/2, y, w, h, 9, color);
+
+  // Windshields
+  roundedRect(x - 14, y + 10, 28, 16, 4, "#bdeaff");
+  roundedRect(x - 14, y + 43, 28, 12, 4, "#26364d");
+
+  // Headlights / tail lights
+  if (isPlayer) {
+    roundedRect(x - 16, y + 3, 9, 5, 2, "#fff7ae");
+    roundedRect(x + 7, y + 3, 9, 5, 2, "#fff7ae");
+  } else {
+    roundedRect(x - 16, y + h - 7, 9, 5, 2, "#ff5252");
+    roundedRect(x + 7, y + h - 7, 9, 5, 2, "#ff5252");
+  }
+
+  if (isPlayer) {
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - w/2 + 2, y + 2, w - 4, h - 4);
+  }
+}
+
+function drawCoin(coin) {
+  ctx.beginPath();
+  ctx.arc(coin.x, coin.y, 11, 0, Math.PI * 2);
+  ctx.fillStyle = "#facc15";
+  ctx.fill();
+
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "#f59e0b";
+  ctx.stroke();
+
+  ctx.fillStyle = "#92400e";
+  ctx.font = "bold 14px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("$", coin.x, coin.y + 1);
+}
+
+function drawScene() {
+  // Grass
+  ctx.fillStyle = "#246b43";
+  ctx.fillRect(0, 0, W, H);
+
+  // Decorative grass strips
+  for (let y = -40 + (roadOffset % 80); y < H; y += 80) {
+    ctx.fillStyle = "#2e8050";
+    ctx.fillRect(0, y, ROAD_X - 3, 30);
+    ctx.fillRect(ROAD_X + ROAD_W + 3, y, W, 30);
+  }
+
+  // Road
+  ctx.fillStyle = "#343b46";
+  ctx.fillRect(ROAD_X, 0, ROAD_W, H);
+
+  // Road shoulders
+  ctx.fillStyle = "#e5e7eb";
+  ctx.fillRect(ROAD_X, 0, 4, H);
+  ctx.fillRect(ROAD_X + ROAD_W - 4, 0, 4, H);
+
+  // Lane dividers
+  ctx.fillStyle = "#f8fafc";
+  for (let lane = 1; lane < 3; lane++) {
+    const x = ROAD_X + lane * LANE_W - 2;
+    for (let y = -60 + (roadOffset % 60); y < H; y += 60) {
+      ctx.fillRect(x, y, 4, 32);
+    }
+  }
+
+  // Traffic
+  traffic.forEach(car => {
+    drawCar(car.x, car.y, car.color);
+  });
+
+  // Coins
+  pickups.forEach(drawCoin);
+
+  // Player
+  drawCar(player.x, player.y, player.color, true);
+
+  // Particles
+  particles.forEach(p => {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+
+  // Speed indicator
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  roundedRect(8, 8, 83, 29, 6, "rgba(0,0,0,0.45)");
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 12px Arial";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  ctx.fillText("SPEED " + Math.floor(1 + score / 500) + "x", 16, 23);
+}
+
+function resetGame() {
+  score = 0;
+  coins = 0;
+  roadOffset = 0;
+  spawnTimer = 0;
+  coinTimer = 0;
+  traffic = [];
+  pickups = [];
+  particles = [];
+  invincible = 0;
+
+  player.lane = 1;
+  player.x = ROAD_X + LANE_W * 1.5;
+
+  updateHUD();
+}
+
+function updateHUD() {
+  scoreEl.textContent = Math.floor(score);
+  coinsEl.textContent = coins;
+  bestEl.textContent = best;
+}
+
+function startGame() {
+  resetGame();
+  state = "playing";
+  overlay.classList.add("hidden");
+  pauseBtn.textContent = "⏸ PAUSE";
+  lastTime = performance.now();
+}
+
+function endGame() {
+  if (state !== "playing") return;
+
+  state = "gameover";
+
+  if (Math.floor(score) > best) {
+    best = Math.floor(score);
+    try {
+      localStorage.setItem("trafficRacerBest", String(best));
+    } catch (_) {}
+  }
+
+  updateHUD();
+  overlayTitle.textContent = "💥 GAME OVER";
+  overlayMessage.textContent =
+    "Score: " + Math.floor(score) +
+    " | Coins: " + coins +
+    " | Best: " + best +
+    ". Ready for another race?";
+  startBtn.textContent = "RACE AGAIN";
+  overlay.classList.remove("hidden");
+}
+
+function pauseGame() {
+  if (state === "playing") {
+    state = "paused";
+    overlayTitle.textContent = "⏸ PAUSED";
+    overlayMessage.textContent = "Take a break. Your race is waiting!";
+    startBtn.textContent = "RESUME RACE";
+    overlay.classList.remove("hidden");
+    pauseBtn.textContent = "▶ RESUME";
+  } else if (state === "paused") {
+    state = "playing";
+    overlay.classList.add("hidden");
+    pauseBtn.textContent = "⏸ PAUSE";
+    lastTime = performance.now();
+  }
+}
+
+function movePlayer(direction) {
+  if (state !== "playing") return;
+
+  player.lane = Math.max(0, Math.min(2, player.lane + direction));
+  player.x = ROAD_X + LANE_W * (player.lane + 0.5);
+}
+
+function spawnTraffic() {
+  const lane = Math.floor(Math.random() * 3);
+
+  // Avoid spawning directly on top of a recently spawned car.
+  const blocked = traffic.some(car =>
+    car.lane === lane && car.y < 135
+  );
+
+  if (blocked) return;
+
+  traffic.push({
+    lane,
+    x: ROAD_X + LANE_W * (lane + 0.5),
+    y: -85,
+    width: 40,
+    height: 70,
+    color: enemyColors[Math.floor(Math.random() * enemyColors.length)],
+    speed: 170 + Math.random() * 65
+  });
+}
+
+function spawnCoin() {
+  const lane = Math.floor(Math.random() * 3);
+  pickups.push({
+    lane,
+    x: ROAD_X + LANE_W * (lane + 0.5),
+    y: -20,
+    collected: false
+  });
+}
+
+function makeParticles(x, y, color) {
+  for (let i = 0; i < 14; i++) {
+    particles.push({
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 240,
+      vy: (Math.random() - 0.5) * 240,
+      life: 1,
+      color,
+      size: 2 + Math.random() * 4
+    });
+  }
+}
+
+function overlaps(a, b) {
+  return Math.abs(a.x - b.x) < (a.width + b.width) / 2 - 5 &&
+         Math.abs(a.y - b.y) < (a.height + b.height) / 2 - 8;
+}
+
+function update(dt) {
+  const difficulty = Math.min(2.4, 1 + score / 1400);
+  const roadSpeed = 230 * difficulty;
+
+  roadOffset = (roadOffset + roadSpeed * dt) % 60;
+  score += dt * 12 * difficulty;
+
+  spawnTimer += dt;
+  coinTimer += dt;
+
+  const spawnInterval = Math.max(0.48, 1.15 / difficulty);
+
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0;
+    spawnTraffic();
+  }
+
+  if (coinTimer >= 1.5) {
+    coinTimer = 0;
+    if (Math.random() < 0.8) spawnCoin();
+  }
+
+  traffic.forEach(car => {
+    car.y += (roadSpeed + car.speed - 170) * dt;
+
+    if (invincible <= 0 && overlaps(
+      { x: player.x, y: player.y, width: player.width, height: player.height },
+      car
+    )) {
+      makeParticles(player.x, player.y + 30, "#f97316");
+      endGame();
+    }
+  });
+
+  traffic = traffic.filter(car => car.y < H + 100);
+
+  pickups.forEach(coin => {
+    coin.y += roadSpeed * dt;
+
+    if (!coin.collected &&
+        Math.abs(coin.x - player.x) < 29 &&
+        Math.abs(coin.y - (player.y + 35)) < 38) {
+      coin.collected = true;
+      coins++;
+      score += 50;
+      makeParticles(coin.x, coin.y, "#facc15");
+    }
+  });
+
+  pickups = pickups.filter(coin => coin.y < H + 30 && !coin.collected);
+
+  particles.forEach(p => {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt * 1.7;
+  });
+
+  particles = particles.filter(p => p.life > 0);
+
+  if (invincible > 0) invincible -= dt;
+
+  updateHUD();
+}
+
+function frame(time) {
+  // Cap dt so the game stays stable after a lag spike.
+  const dt = Math.min((time - lastTime) / 1000 || 0, 0.035);
+  lastTime = time;
+
+  if (state === "playing") update(dt);
+  drawScene();
+
+  requestAnimationFrame(frame);
+}
+
+startBtn.addEventListener("click", () => {
+  if (state === "paused") {
+    state = "playing";
+    overlay.classList.add("hidden");
+    pauseBtn.textContent = "⏸ PAUSE";
+    lastTime = performance.now();
+  } else {
+    startGame();
+  }
+});
+
+pauseBtn.addEventListener("click", pauseGame);
+document.getElementById("restart-btn").addEventListener("click", startGame);
+
+document.getElementById("left-btn").addEventListener("click", () => movePlayer(-1));
+document.getElementById("right-btn").addEventListener("click", () => movePlayer(1));
+
+document.addEventListener("keydown", event => {
+  const key = event.key.toLowerCase();
+
+  if (["arrowleft", "arrowright", " "].includes(key)) {
+    event.preventDefault();
+  }
+
+  if (key === "arrowleft" || key === "a") movePlayer(-1);
+  if (key === "arrowright" || key === "d") movePlayer(1);
+
+  if (key === "p" || key === "escape") {
+    pauseGame();
+  }
+
+  if (key === "enter" && state !== "playing") {
+    startBtn.click();
+  }
+});
+
+// Swipe controls for phones.
+let touchStartX = null;
+
+canvas.addEventListener("touchstart", event => {
+  touchStartX = event.changedTouches[0].clientX;
+}, { passive: true });
+
+canvas.addEventListener("touchend", event => {
+  if (touchStartX === null) return;
+
+  const delta = event.changedTouches[0].clientX - touchStartX;
+
+  if (Math.abs(delta) > 20) {
+    movePlayer(delta > 0 ? 1 : -1);
+  }
+
+  touchStartX = null;
+}, { passive: true });
+
+resetGame();
+drawScene();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
+
